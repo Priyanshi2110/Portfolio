@@ -6,34 +6,41 @@ const VisitorCounter = () => {
   const isAdminView = new URLSearchParams(window.location.search).get('admin') === 'priyanshi'
 
   useEffect(() => {
-    const hostname = window.location.hostname || 'localhost'
-    const key = hostname.replace(/\./g, '-') || 'portfolio'
-    const hitUrl = `https://api.countapi.xyz/hit/${key}/portfolio-views`
-    const getUrl = `https://api.countapi.xyz/get/${key}/portfolio-views`
-    const storageKey = `portfolio-visitor-counted-${key}`
-
-    const recordVisit = async () => {
+    const trackVisit = async () => {
       try {
-        const hasCountedThisSession = sessionStorage.getItem(storageKey)
+        const response = await fetch('/api/visitors', {
+          method: 'POST',
+          credentials: 'include',
+        })
 
-        if (!hasCountedThisSession) {
-          await fetch(hitUrl)
-          sessionStorage.setItem(storageKey, 'true')
+        if (!response.ok) {
+          throw new Error('Failed to track visitor')
         }
 
-        const response = await fetch(getUrl)
         const data = await response.json()
-        setCount(data?.value ?? 0)
+        setCount(Number(data.count || 0))
       } catch (error) {
-        console.error('Visitor count unavailable:', error)
-        setCount(0)
+        console.error('Visitor tracking unavailable:', error)
+
+        try {
+          const fallbackResponse = await fetch('/api/visitors', { credentials: 'include' })
+          const fallbackData = await fallbackResponse.json()
+          setCount(Number(fallbackData.count || 0))
+        } catch {
+          setCount(0)
+        }
       } finally {
         setLoading(false)
       }
     }
 
-    recordVisit()
-  }, [])
+    if (isAdminView) {
+      trackVisit()
+    } else {
+      setLoading(false)
+      setCount(0)
+    }
+  }, [isAdminView])
 
   if (!isAdminView) {
     return null
